@@ -1,4 +1,3 @@
-
 resource "aws_security_group" "efs" {
   name   = "${var.prefix}-efs"
   vpc_id = module.vpc.vpc_id
@@ -6,7 +5,7 @@ resource "aws_security_group" "efs" {
     from_port   = 2049
     to_port     = 2049
     protocol    = "tcp"
-    cidr_blocks = [module.vpc.vpc_cidr_block]
+    security_groups = [aws_security_group.n8n.id]
   }
   egress {
     from_port   = 0
@@ -37,7 +36,7 @@ resource "aws_efs_access_point" "access" {
     creation_info {
       owner_gid   = 1000
       owner_uid   = 1000
-      permissions = "777"
+      permissions = "755"
     }
   }
 }

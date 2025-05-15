@@ -14,10 +14,11 @@ resource "aws_security_group" "alb" {
     cidr_blocks = ["0.0.0.0/0"]
   }
   egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = [module.vpc.vpc_cidr_block]
+    description     = "Allow traffic to n8n tasks"
+    from_port       = 5678
+    to_port         = 5678
+    protocol        = "tcp"
+    security_groups = [aws_security_group.n8n.id]
   }
 }
 
@@ -27,12 +28,12 @@ resource "aws_lb" "main" {
   load_balancer_type         = "application"
   security_groups            = [aws_security_group.alb.id]
   subnets                    = module.vpc.public_subnets
-  enable_deletion_protection = false
+  enable_deletion_protection = true
 }
 
 resource "aws_lb_target_group" "ip" {
   name                 = "${var.prefix}-tg"
-  port                 = 80
+  port                 = 5678
   deregistration_delay = 30
   protocol             = "HTTP"
   target_type          = "ip"
@@ -47,13 +48,22 @@ resource "aws_lb_target_group" "ip" {
 }
 
 resource "aws_lb_listener" "http" {
-  count             = var.certificate_arn == null ? 1 : 0
   load_balancer_arn = aws_lb.main.arn
   port              = "80"
   protocol          = "HTTP"
+
   default_action {
-    type             = "forward"
-    target_group_arn = aws_lb_target_group.ip.arn
+    type = var.certificate_arn != null ? "redirect" : "forward"
+
+    # Forward action (if no certificate)
+    target_group_arn = var.certificate_arn != null ? null : aws_lb_target_group.ip.arn
+
+    # Redirect action (if certificate is provided)
+    redirect = var.certificate_arn != null ? {
+      port        = "443"
+      protocol    = "HTTPS"
+      status_code = "HTTP_301"
+      } : null
   }
 }
 

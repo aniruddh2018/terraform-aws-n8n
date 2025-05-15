@@ -2,7 +2,7 @@ resource "aws_ecs_cluster" "ecs" {
   name = "${var.prefix}-cluster"
   setting {
     name  = "containerInsights"
-    value = "disabled"
+    value = "enabled"
   }
 }
 
@@ -18,7 +18,7 @@ resource "aws_ecs_cluster_capacity_providers" "main" {
 
 resource "aws_cloudwatch_log_group" "logs" {
   name              = "${var.prefix}-logs"
-  retention_in_days = 1
+  retention_in_days = 7
 }
 
 resource "aws_ecs_task_definition" "taskdef" {
@@ -52,6 +52,40 @@ resource "aws_ecs_task_definition" "taskdef" {
         {
           name  = "N8N_SKIP_WEBHOOK_DEREGISTRATION_SHUTDOWN"
           value = "true"
+        },
+        {
+          name  = "GENERIC_TIMEZONE",
+          value = "UTC"
+        },
+        {
+          name  = "DB_TYPE",
+          value = "postgresdb"
+        },
+        {
+          name  = "DB_POSTGRESDB_HOST",
+          value = aws_db_instance.n8n_postgres.address
+        },
+        {
+          name  = "DB_POSTGRESDB_PORT",
+          value = tostring(aws_db_instance.n8n_postgres.port)
+        },
+        {
+          name  = "DB_POSTGRESDB_DATABASE",
+          value = aws_db_instance.n8n_postgres.db_name
+        },
+        {
+          name  = "DB_POSTGRESDB_USER",
+          value = aws_db_instance.n8n_postgres.username
+        }
+      ]
+      secrets = [
+        {
+          name      = "N8N_ENCRYPTION_KEY",
+          valueFrom = aws_secretsmanager_secret.n8n_encryption_key.arn
+        },
+        {
+          name      = "DB_POSTGRESDB_PASSWORD",
+          valueFrom = aws_secretsmanager_secret.db_master_password.arn
         }
       ]
       logConfiguration = {
@@ -69,7 +103,6 @@ resource "aws_ecs_task_definition" "taskdef" {
     efs_volume_configuration {
       file_system_id          = aws_efs_file_system.main.id
       transit_encryption      = "ENABLED"
-      transit_encryption_port = 2999
       authorization_config {
         access_point_id = aws_efs_access_point.access.id
         iam             = "ENABLED"
@@ -78,8 +111,8 @@ resource "aws_ecs_task_definition" "taskdef" {
   }
   requires_compatibilities = ["FARGATE"]
   network_mode             = "awsvpc"
-  cpu                      = 256
-  memory                   = 512
+  cpu                      = 1024
+  memory                   = 2048
 }
 
 resource "aws_security_group" "n8n" {
@@ -100,6 +133,13 @@ resource "aws_security_group" "n8n" {
     cidr_blocks      = ["0.0.0.0/0"]
     ipv6_cidr_blocks = ["::/0"]
   }
+  egress {
+    description      = "Allow traffic to RDS PostgreSQL"
+    from_port        = 5432
+    to_port          = 5432
+    protocol         = "tcp"
+    security_groups  = [aws_security_group.rds.id]
+  }
 }
 
 resource "aws_ecs_service" "service" {
@@ -113,13 +153,11 @@ resource "aws_ecs_service" "service" {
     base              = 1
   }
   network_configuration {
-    subnets = module.vpc.public_subnets
+    subnets = module.vpc.private_subnets
     security_groups = [
       aws_security_group.n8n.id
     ]
-    // this way we dont need a NAT gateway or VPC endpoint for pulling the images
-    // traffic is only allowed from the LB anyway so this is safe
-    assign_public_ip = true
+    assign_public_ip = false
   }
   load_balancer {
     target_group_arn = aws_lb_target_group.ip.arn

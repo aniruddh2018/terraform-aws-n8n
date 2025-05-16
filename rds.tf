@@ -13,14 +13,6 @@ resource "aws_security_group" "rds" {
   description = "Allow PostgreSQL access from ECS tasks"
   vpc_id      = module.vpc.vpc_id
 
-  ingress {
-    description     = "PostgreSQL from ECS tasks"
-    from_port       = 5432
-    to_port         = 5432
-    protocol        = "tcp"
-    security_groups = [aws_security_group.n8n.id] // Reference to n8n task SG in ecs.tf
-  }
-
   egress {
     from_port   = 0
     to_port     = 0
@@ -31,6 +23,16 @@ resource "aws_security_group" "rds" {
   tags = {
     Name = "${var.prefix}-rds-sg"
   }
+}
+
+resource "aws_security_group_rule" "rds_ingress_from_n8n" {
+  type                     = "ingress"
+  security_group_id        = aws_security_group.rds.id
+  protocol                 = "tcp"
+  from_port                = 5432
+  to_port                  = 5432
+  source_security_group_id = aws_security_group.n8n.id // Reference to n8n SG in ecs.tf
+  description              = "Allow PostgreSQL access from n8n tasks"
 }
 
 resource "aws_db_instance" "n8n_postgres" {

@@ -11,4 +11,8 @@ terraform {
       version = "~> 3.5" # Specify a recent, appropriate version
     }
   }
+}
+
+provider "aws" {
+  region = "us-east-1" # PLEASE CONFIRM OR CHANGE THIS REGION
 } 

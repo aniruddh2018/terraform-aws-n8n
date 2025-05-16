@@ -118,21 +118,15 @@ resource "aws_ecs_task_definition" "taskdef" {
 resource "aws_security_group" "n8n" {
   name   = "${var.prefix}-sg"
   vpc_id = module.vpc.vpc_id
-  ingress {
-    from_port = 5678
-    to_port   = 5678
-    protocol  = "tcp"
-    security_groups = [
-      aws_security_group.alb.id
-    ]
-  }
   egress {
+    description      = "Allow all outbound traffic by default"
     from_port        = 0
     to_port          = 0
     protocol         = "-1"
     cidr_blocks      = ["0.0.0.0/0"]
     ipv6_cidr_blocks = ["::/0"]
   }
+
   egress {
     description      = "Allow traffic to RDS PostgreSQL"
     from_port        = 5432
@@ -140,6 +134,16 @@ resource "aws_security_group" "n8n" {
     protocol         = "tcp"
     security_groups  = [aws_security_group.rds.id]
   }
+}
+
+resource "aws_security_group_rule" "n8n_ingress_from_alb" {
+  type                     = "ingress"
+  security_group_id        = aws_security_group.n8n.id
+  protocol                 = "tcp"
+  from_port                = 5678
+  to_port                  = 5678
+  source_security_group_id = aws_security_group.alb.id
+  description              = "Allow traffic from ALB to n8n tasks"
 }
 
 resource "aws_ecs_service" "service" {

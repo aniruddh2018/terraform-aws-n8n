@@ -55,15 +55,18 @@ resource "aws_lb_listener" "http" {
   default_action {
     type = var.certificate_arn != null ? "redirect" : "forward"
 
-    # Forward action (if no certificate)
-    target_group_arn = var.certificate_arn != null ? null : aws_lb_target_group.ip.arn
+    # Forward action: only set target_group_arn if not redirecting
+    target_group_arn = var.certificate_arn == null ? aws_lb_target_group.ip.arn : null
 
-    # Redirect action (if certificate is provided)
-    redirect = var.certificate_arn != null ? {
-      port        = "443"
-      protocol    = "HTTPS"
-      status_code = "HTTP_301"
-      } : null
+    # Redirect action: define as a block if redirecting
+    dynamic "redirect" {
+      for_each = var.certificate_arn != null ? [1] : []
+      content {
+        port        = "443"
+        protocol    = "HTTPS"
+        status_code = "HTTP_301"
+      }
+    }
   }
 }
 

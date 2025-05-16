@@ -73,5 +73,9 @@ resource "aws_iam_role" "executionrole" {
       }
     ]
   })
-  managed_policy_arns = ["arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"]
+}
+
+resource "aws_iam_role_policy_attachment" "executionrole_attachment" {
+  role       = aws_iam_role.executionrole.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
 }
